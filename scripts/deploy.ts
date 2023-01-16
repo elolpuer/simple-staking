@@ -1,18 +1,32 @@
 import { ethers } from "hardhat";
 
+const totalReward = ethers.utils.parseEther("30000")
+const oneDay = 86400
+const duration = oneDay * 30 //30 days in seconds
+
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
-  const unlockTime = currentTimestampInSeconds + ONE_YEAR_IN_SECS;
+  const Token = await ethers.getContractFactory("TestToken");
+  const usdt = await Token.deploy("USD Tether", "USDT")
+  const ttt = await Token.deploy("TestToken", "TTT")
+  
+  await usdt.deployed();
+  await ttt.deployed();
 
-  const lockedAmount = ethers.utils.parseEther("1");
+  const Staking = await ethers.getContractFactory("Staking");
+  const staking = await Staking.deploy(
+    usdt.address,  //staking token
+    ttt.address    //reward token
+  );
 
-  const Lock = await ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
+  await ttt.mint(staking.address, totalReward)
+  await staking.setRewardsDuration(duration)
+  await staking.notifyRewardAmount(totalReward)
 
-  await lock.deployed();
+  await staking.deployed();
 
-  console.log(`Lock with 1 ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`);
+  console.log(`Staking contract deployed to address: ${staking.address}`);
+  console.log(`USDT contract deployed to address: ${usdt.address}`);
+  console.log(`TTT contract deployed to address: ${ttt.address}`);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

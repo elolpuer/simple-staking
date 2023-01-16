@@ -2,42 +2,54 @@
 pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Staking {
+/// @title Staking contract 
+/// @notice Users can stake their stakingToken and get rewars in rewardsToken
+/// @dev Owner can set duration of staking and totalAmount to share in this period
+contract Staking is Ownable {
     IERC20 public immutable stakingToken;
     IERC20 public immutable rewardsToken;
 
-    address public owner;
-
-    // Duration of rewards to be paid out (in seconds)
+    /// @notice Duration of rewards to be paid out (in seconds)
+    /// @return duration time in seconds
     uint public duration;
-    // Timestamp of when the rewards finish
+
+    /// @notice Timestamp of when the rewards finish
+    /// @return finishAt time in seconds
     uint public finishAt;
-    // Minimum of last updated time and reward finish time
+
+    /// @notice Minimum of last updated time and reward finish time
+    /// @return updatedAt time in seconds
     uint public updatedAt;
-    // Reward to be paid out per second
+
+    /// @notice Reward to be paid out per second
+    /// @return rewardRate tokens
     uint public rewardRate;
-    // Sum of (reward rate * dt * 1e18 / total supply)
+
+    /// @notice Sum of (reward rate * dt * 1e18 / total supply)
+    /// @return rewardPerTokenStored rewards
     uint public rewardPerTokenStored;
-    // User address => rewardPerTokenStored
+
+    /// @notice User address => rewardPerTokenStored
+    /// @return userRewardPerTokenPaid tokens paid
     mapping(address => uint) public userRewardPerTokenPaid;
-    // User address => rewards to be claimed
+
+    /// @notice User address => rewards to be claimed
+    /// @return rewards tokens to be claimed
     mapping(address => uint) public rewards;
 
-    // Total staked
+    /// @notice Total staked
+    /// @return totalSupply total tokens supply
     uint public totalSupply;
-    // User address => staked amount
+
+    /// @notice User address => staked amount
+    /// @return balanceOf user's staking tokens balance on contract 
     mapping(address => uint) public balanceOf;
 
     constructor(address _stakingToken, address _rewardToken) {
-        owner = msg.sender;
         stakingToken = IERC20(_stakingToken);
         rewardsToken = IERC20(_rewardToken);
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "not authorized");
-        _;
     }
 
     modifier updateReward(address _account) {
@@ -67,6 +79,9 @@ contract Staking {
             totalSupply;
     }
 
+    /// @notice Stake tokens in contract
+    /// @dev Transfers staking tokens from staker to this contract
+    /// @param _amount amount of staking tokens to stake
     function stake(uint _amount) external updateReward(msg.sender) {
         require(_amount > 0, "amount = 0");
         stakingToken.transferFrom(msg.sender, address(this), _amount);
@@ -74,6 +89,9 @@ contract Staking {
         totalSupply += _amount;
     }
 
+    /// @notice Withdraw tokens from contract
+    /// @dev Transfers staking tokens from contract to staker
+    /// @param _amount amount of staking tokens to withdraw
     function withdraw(uint _amount) external updateReward(msg.sender) {
         require(_amount > 0, "amount = 0");
         balanceOf[msg.sender] -= _amount;
@@ -81,6 +99,9 @@ contract Staking {
         stakingToken.transfer(msg.sender, _amount);
     }
 
+    /// @notice Shows earned tokens amount
+    /// @param _account amount of staking tokens to withdraw
+    /// @return uint earned tokens amount
     function earned(address _account) public view returns (uint) {
         return
             ((balanceOf[_account] *
@@ -88,6 +109,8 @@ contract Staking {
             rewards[_account];
     }
 
+    /// @notice Allows users to withdraw their rewards
+    /// @dev Transfers user's reward tokens amount
     function getReward() external updateReward(msg.sender) {
         uint reward = rewards[msg.sender];
         if (reward > 0) {
@@ -96,15 +119,17 @@ contract Staking {
         }
     }
 
+    /// @notice Owner set duration
     function setRewardsDuration(uint _duration) external onlyOwner {
         require(finishAt < block.timestamp, "reward duration not finished");
         duration = _duration;
     }
 
+    /// @notice Owner set reward amount
     function notifyRewardAmount(
         uint _amount
     ) external onlyOwner updateReward(address(0)) {
-        if (block.timestamp >= finishAt) {
+        if (block.timestamp >= finishAt) {  // reward duration expired or not started
             rewardRate = _amount / duration;
         } else {
             uint remainingRewards = (finishAt - block.timestamp) * rewardRate;
@@ -125,3 +150,4 @@ contract Staking {
         return x <= y ? x : y;
     }
 }
+
